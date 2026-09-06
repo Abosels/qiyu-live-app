@@ -55,7 +55,7 @@ class UserServiceRedisTest {
 
         UserDTO cachedUser = new UserDTO();
         cachedUser.setUserId(1L);
-        cachedUser.setNickname("cache-user");
+        cachedUser.setNickName("cache-user");
 
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         when(valueOperations.get("qiyu-live-user-provider:userInfo:1")).thenReturn(cachedUser);

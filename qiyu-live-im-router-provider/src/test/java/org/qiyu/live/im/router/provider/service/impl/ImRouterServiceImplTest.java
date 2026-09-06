@@ -37,9 +37,9 @@ class ImRouterServiceImplTest {
         String expectedRedisKey = ImCoreServerConstants.IM_BIND_IP_KEY + "10001:10086";
 
         when(stringRedisTemplate.opsForValue()).thenReturn(valueOperations);
-        when(valueOperations.get(expectedRedisKey)).thenReturn("127.0.0.1:9092");
+        when(valueOperations.get(expectedRedisKey)).thenReturn("127.0.0.1:9092%10086");
 
-        ReflectionTestUtils.setField(routerService, "routerHandler", routerHandlerRpc);
+        ReflectionTestUtils.setField(routerService, "routerHandlerRpc", routerHandlerRpc);
         ReflectionTestUtils.setField(routerService, "stringRedisTemplate", stringRedisTemplate);
 
         boolean result = routerService.sendMsg(imMsgBody);
