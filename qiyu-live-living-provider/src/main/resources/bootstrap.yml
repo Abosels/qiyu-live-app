@@ -1,0 +1,66 @@
+server:
+  port: 8087
+
+spring:
+  application:
+    name: qiyu-live-living-provider
+  config:
+    import:
+      - "optional:nacos:qiyu-live-living-provider.yml"
+  cloud:
+    nacos:
+      username: ${NACOS_USERNAME:nacos}
+      password: ${NACOS_PASSWORD:}
+      discovery:
+        server-addr: host.docker.internal:8848
+        namespace: public
+        group: DEFAULT_GROUP
+      config:
+        import-check:
+          enabled: false
+        server-addr: host.docker.internal:8848
+        file-extension: yml
+        namespace: public
+        group: DEFAULT_GROUP
+  # MySQL 数据源（直播间表 t_living_room / t_living_room_record）
+  datasource:
+    url: jdbc:mysql://host.docker.internal:3307/qiyu-live-living?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: root
+    password: ${QIYU_MYSQL_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      minimum-idle: 5
+      maximum-pool-size: 20
+      connection-timeout: 30000
+  # Redis（直播间缓存、用户集合、分布式锁）
+  data:
+    redis:
+      host: host.docker.internal
+      port: 6379
+      database: 0
+      timeout: 3000ms
+
+dubbo:
+  application:
+    name: ${spring.application.name}
+  registry:
+    address: nacos://host.docker.internal:8848?namespace=public
+    username: ${NACOS_USERNAME:nacos}
+    password: ${NACOS_PASSWORD:}
+  protocol:
+    name: dubbo
+    port: 9096
+  server: true
+
+# RocketMQ（消费 IM 在线/离线事件）
+qiyu:
+  rmq:
+    producer:
+      # 用环境变量兜底，Docker 部署时指向容器别名 rocketmq-namesrv
+      nameServer: ${QIYU_RMQ_PRODUCER_NAMESERVER:host.docker.internal:9876}
+      groupName: ${spring.application.name}
+      retryTimes: 3
+      sendMsgTimeout: 3000
+    consumer:
+      nameServer: ${QIYU_RMQ_CONSUMER_NAMESERVER:host.docker.internal:9876}
+      groupName: ${spring.application.name}

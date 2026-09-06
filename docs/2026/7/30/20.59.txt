@@ -1,0 +1,95 @@
+2026-07-30 送礼、虚拟币消费与 IM 广播改动记录
+
+一、已完成的资金链路改动
+
+1. 送礼扣币使用 bank-provider 的同步原子方法 consumeForSendGift。
+   - 请求必须带 userId、number、bizId（礼物 MQ 的 uuId）。
+   - 使用 MySQL 条件 UPDATE 扣减余额，避免并发超扣。
+   - 使用 t_qiyu_currency_trade 的 biz_id + type 唯一约束实现扣币幂等。
+   - 写交易流水与扣币处于同一个事务中。
+   - 事务提交后才删除余额 Redis 缓存。
+
+2. AccountTradeRespDTO 增加 firstConsume。
+   - success=true, firstConsume=true：本次首次完成扣币。
+   - success=true, firstConsume=false：对应 uuId 的送礼扣币已处理过。
+   - success=false：扣币失败，例如余额不足或参数非法。
+
+3. consumeForSendGift 的返回结果已区分首次处理和重复处理。
+   - 已存在相同 bizId + SEND_GIFT_TRADE 流水时，返回“送礼已处理”和 firstConsume=false。
+   - 首次扣币、写流水成功时，返回“消费成功”和 firstConsume=true。
+
+二、已完成的礼物全直播间特效链路改动
+
+1. SendGiftConsumer 消费 SEND_GIFT 消息后调用 consumeForSendGift。
+
+2. 扣币成功后：
+   - 从 SendGiftMQ.getRoomId() 取得直播间 ID。
+   - 调用 ILivingRoomRpc.queryUserIdByRoomId 查询房间在线用户。
+   - 使用 LinkedHashSet 去重。
+   - 强制将送礼人和收礼人加入目标用户集合，避免在线列表短暂不一致时双方看不到结果。
+   - 组装 roomId、sendUserId、receiveUserId、giftId、giftName、price、url、svgaUrl、uuId 等特效数据。
+   - 为每个目标用户生成 ImMsgBody，并调用 imRouterRpc.batchSendMsg。
+
+3. 礼物特效使用稳定消息 ID：
+   gift-effect:{uuId}:{targetUserId}
+   同一条礼物 MQ 被 RocketMQ 重试时，给同一用户的 msgId 保持不变。
+
+4. IM Core 的 RouterHandlerServiceImpl 不再无条件生成新的 UUID。
+   - msgId 为空时才生成 UUID。
+   - 礼物特效已有 msgId 时保留原值。
+
+5. im-router-provider 的 IRouterHandlerRpc.batchSendMsg 已委托给 routerService.batchSendMsg。
+   之前该 Dubbo 入口为空时，gift-provider 的批量广播不会真正进入 IM Router。
+
+6. ImRouterServiceImpl 的批量 Redis 路由已跳过离线用户对应的 null 绑定记录。
+   目标用户离线时不应导致整个批量广播空指针或触发 MQ 重试。
+
+三、尚未完成，下一次继续按以下顺序修改
+
+1. 修复 ImRouterServiceImpl.sendMsg 的单播 IP 截取。
+   当前错误写法：
+   bindAddr.substring(bindAddr.lastIndexOf("%"))
+   Redis 格式是“IM服务器地址%用户ID”，该写法取得的是“%用户ID”。
+   正确写法：
+   bindAddr.substring(0, bindAddr.lastIndexOf("%"))
+   这会影响送礼失败时对送礼人的单播通知。
+
+2. 在 ImRouterServiceImpl.batchSendMsg 方法开头增加空集合保护：
+   if (imMsgBodyList == null || imMsgBodyList.isEmpty()) {
+       return;
+   }
+   并对 Redis 绑定值缺少“%”分隔符的异常数据使用 continue 跳过。
+
+3. 在 qiyu-live-api 的 GiftServiceImpl 生产 SendGiftMQ 前校验 roomId。
+   roomId 为空或小于等于 0 时，不允许发送 MQ。
+   目的：避免消费者已经扣币后发现 roomId 非法，导致没有特效和成功通知。
+
+4. 在 SendGiftConsumer 解析 MQ JSON 后进行字段校验。
+   需要校验 userId、giftId、price、roomId、receiveId、uuId。
+   JSON 解析失败或字段非法时，记录错误并 continue，使错误消息被确认消费而不是无限重试。
+   Dubbo、Redis、IM 服务调用失败则保持抛异常，让 RocketMQ 重试。
+
+5. 保留旧 consume 方法，但改为兼容转发，不保留旧的“扣币同步、流水异步”实现。
+   建议替换为：
+
+   @Override
+   @Deprecated
+   @Transactional(rollbackFor = Exception.class)
+   public AccountTradeRespDTO consume(AccountTradeReqDTO accountTradeReqDTO) {
+       return consumeForSendGift(accountTradeReqDTO);
+   }
+
+   后续新送礼代码直接调用 consumeForSendGift；新业务场景应新增专用的、带 bizId 的消费方法。
+
+6. 前端接入礼物特效时，必须按 msgId 去重后播放 SVGA。
+   原因：RocketMQ 重试和 IM ACK 重发都可能让客户端收到同一 msgId 多次。
+
+四、验证情况
+
+1. 已执行 Maven 编译：
+   mvn -s .mvn/settings.xml -pl qiyu-live-gift-provider,qiyu-live-im-router-provider,qiyu-live-im-core-server,qiyu-live-bank-provider -am -DskipTests compile
+
+2. 构建在 qiyu-live-user-provider 提前失败，未执行到 im-router-provider、im-core-server、gift-provider、bank-provider：
+   UserPhoneServiceImpl.java:136 调用了 UserDTO.setNickname(String)，但 UserDTO 当前没有该方法。
+
+3. 该编译错误与本次送礼、虚拟币、IM 路由改动无直接关系；bank-interface 已在本次构建中编译通过。

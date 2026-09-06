@@ -1,0 +1,40 @@
+<configuration>
+    <springProperty name="APP_NAME" scope="context" source="spring.application.name" defaultValue="undefined"/>
+    <!-- 用于生成一个标识，防止多个 Docker 容器映射到同一台宿主机时出现日志目录名重复的问题 -->
+    <define name="index" class="org.qiyu.live.common.interfaces.utils.IpLogConversionRule"/>
+    <!-- 本地联调默认落到项目目录，避免 Windows 下 /tmp 或用户目录权限问题 -->
+    <property name="LOG_HOME" value="./.runtime-logs/${APP_NAME}/${index}"/>
+    <property name="LOG_PATTERN" value="[%d{yyyy-MM-dd HH:mm:ss.SSS} %-5p] %-40.40logger{39} :%msg%n"/>
+
+    <!-- 控制台标准输出 -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>${LOG_PATTERN}</pattern>
+        </encoder>
+    </appender>
+
+    <!-- info 级别日志，记录到对应的文件内 -->
+    <appender name="INFO_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_HOME}/${APP_NAME}.log</file>
+        <!-- 滚动策略：按日期生成日志文件，例如 2026-05-11.log -->
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_HOME}/${APP_NAME}.%d{yyyy-MM-dd}.log</fileNamePattern>
+            <maxHistory>30</maxHistory>
+        </rollingPolicy>
+        <!-- 日志输出格式：新版本 logback 需要使用 encoder，不要在 RollingFileAppender 下直接配置 layout -->
+        <encoder>
+            <pattern>${LOG_PATTERN}</pattern>
+        </encoder>
+        <!-- 只保留 error 级别到该文件可继续按需扩展 -->
+        <filter class="ch.qos.logback.classic.filter.LevelFilter">
+            <level>error</level>
+            <onMatch>ACCEPT</onMatch>
+            <onMismatch>DENY</onMismatch>
+        </filter>
+    </appender>
+
+    <root level="info">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="INFO_FILE"/>
+    </root>
+</configuration>

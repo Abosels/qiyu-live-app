@@ -1,0 +1,44 @@
+server:
+  port: 80
+
+spring:
+  application:
+    name: qiyu-live-gateway
+  cloud:
+    nacos:
+      # Nacos 账号密码
+      username: ${NACOS_USERNAME:nacos}
+      password: ${NACOS_PASSWORD:}
+      discovery:
+        server-addr: host.docker.internal:8848
+        # 统一使用 public 命名空间
+        namespace: public
+        group: DEFAULT_GROUP
+      config:
+        import-check:
+          enabled: false
+        # Nacos 配置中心地址
+        server-addr: host.docker.internal:8848
+        # 配置文件后缀
+        file-extension: yml
+        group: DEFAULT_GROUP
+  config:
+    import:
+      - optional:nacos:qiyu-live-gateway.yml
+
+dubbo:
+  application:
+    # Gateway 作为 Dubbo 消费端，需要明确应用名参与注册和排查
+    name: qiyu-live-gateway
+  registry:
+    # Dubbo 注册中心写全，和 api 的写法保持一致
+    address: nacos://host.docker.internal:8848?namespace=public&username=${NACOS_USERNAME:nacos}&password=${NACOS_PASSWORD:}
+    username: ${NACOS_USERNAME:nacos}
+    password: ${NACOS_PASSWORD:}
+
+logging:
+  level:
+    # 打开 Gateway 路由日志，方便排查路径是否命中
+    org.springframework.cloud.gateway: DEBUG
+    # 打开 Reactor Netty 客户端日志，方便排查转发问题
+    reactor.netty.http.client: DEBUG

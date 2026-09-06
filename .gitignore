@@ -1,0 +1,62 @@
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+### IntelliJ IDEA ###
+.idea/modules.xml
+.idea/jarRepositories.xml
+.idea/compiler.xml
+.idea/libraries/
+*.iws
+*.iml
+*.ipr
+
+### Eclipse ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+build/
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+### VS Code ###
+.vscode/
+
+### Mac OS ###
+.DS_Store
+
+effective-user-provider-pom.xml
+.idea/
+
+### 本机 Docker 部署环境变量（真实值不提交） ###
+.env.docker
+
+### 本机 Nacos 运行时目录（含支付宝沙箱私钥等真实密钥，绝不提交） ###
+.runtime-home/
+
+### 本机依赖缓存、运行日志与 Agent 工具文件 ###
+.mvn-local-repo/
+.mvn/repository/
+.tmp/
+META-INF/
+**/.runtime-logs/
+*.log
+.agents/
+
+### 真实环境变量文件（仅提交 *.example 模板） ###
+.env
+.env.*
+!.env.example
+!.env.*.example

@@ -1,0 +1,30 @@
+spring:
+  application:
+    name: qiyu-live-im-core-server
+  data:
+    redis:
+      host: host.docker.internal
+      port: 6379
+      database: 0
+      timeout: 3000ms
+
+server:
+  port: 8084
+
+dubbo:
+  application:
+    name: ${spring.application.name}
+  registry:
+    address: nacos://host.docker.internal:8848?namespace=public
+    username: ${NACOS_USERNAME:nacos}
+    password: ${NACOS_PASSWORD:}
+  protocol:
+    name: dubbo
+    port: 9092
+
+qiyu:
+  im:
+    tcp:
+      port: 8090
+    ws:
+      port: 8091

@@ -1,0 +1,66 @@
+server:
+  port: 8088
+
+spring:
+  application:
+    name: qiyu-live-gift-provider
+  config:
+    import:
+      - "optional:nacos:qiyu-live-gift-provider.yml"
+  cloud:
+    nacos:
+      username: ${NACOS_USERNAME:nacos}
+      password: ${NACOS_PASSWORD:}
+      discovery:
+        server-addr: ${QIYU_NACOS_HOST:localhost}:8848
+        namespace: public
+        group: DEFAULT_GROUP
+      config:
+        import-check:
+          enabled: false
+        server-addr: ${QIYU_NACOS_HOST:localhost}:8848
+        file-extension: yml
+        namespace: public
+        group: DEFAULT_GROUP
+  # MySQL 数据源（礼物配置表、送礼记录表）
+  datasource:
+    # 本机实际库名使用下划线，避免本地启动连接到不存在的 qiyu-live-gift。
+    url: jdbc:mysql://${QIYU_MYSQL_HOST:localhost}:${QIYU_MYSQL_PORT:3306}/qiyu_live_gift?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: root
+    password: ${QIYU_MYSQL_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      minimum-idle: 5
+      maximum-pool-size: 20
+      connection-timeout: 30000
+  # Redis（礼物配置缓存）
+  data:
+    redis:
+      host: ${QIYU_REDIS_HOST:localhost}
+      port: 6379
+      database: 0
+      timeout: 3000ms
+
+dubbo:
+  application:
+    name: ${spring.application.name}
+  registry:
+    address: nacos://${QIYU_NACOS_HOST:localhost}:8848?namespace=public
+    username: ${NACOS_USERNAME:nacos}
+    password: ${NACOS_PASSWORD:}
+  protocol:
+    name: dubbo
+    port: 9097
+  server: true
+
+# Nacos 配置缺失时仍可在本机消费送礼消息。
+qiyu:
+  rmq:
+    producer:
+      name-srv: ${QIYU_RMQ_PRODUCER_NAMESERVER:localhost:9876}
+      groupName: ${spring.application.name}-producer
+      retryTimes: 3
+      sendMsgTimeout: 3000
+    consumer:
+      name-srv: ${QIYU_RMQ_CONSUMER_NAMESERVER:localhost:9876}
+      groupName: ${spring.application.name}

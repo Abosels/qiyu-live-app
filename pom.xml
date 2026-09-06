@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.5.13</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>com.bei</groupId>
+    <artifactId>qiyu-live-app</artifactId>
+    <version>1.0-SNAPSHOT</version>
+    <packaging>pom</packaging>
+
+    <modules>
+        <module>qiyu-live-user-interface</module>
+        <module>qiyu-live-user-provider</module>
+        <module>qiyu-live-api</module>
+        <module>qiyu-live-common-interfacce</module>
+        <module>qiyu-live-framework</module>
+        <module>qiyu-live-framework/qiyu-live-framework-datasource-starter</module>
+        <module>qiyu-live-framework/qiyu-live-framework-redis-starter</module>
+        <module>qiyu-live-id-generate-interface</module>
+        <module>qiyu-live-id-generate-provider</module>
+        <module>qiyu-live-gateway</module>
+        <module>qiyu-live-msg-interface</module>
+        <module>qiyu-live-msg-provider</module>
+        <module>qiyu-live-account-interface</module>
+        <module>qiyu-live-account-provider</module>
+        <module>qiyu-live-framework/qiyu-live-framework-web-starter</module>
+        <module>qiyu-live-im-core-server</module>
+        <module>qiyu-live-im-interface</module>
+        <module>qiyu-live-im-provider</module>
+        <module>qiyu-live-framework/qiyu-live-framework-mq-starter</module>
+        <module>qiyu-live-im-core-server-interfaces</module>
+        <module>qiyu-live-im-router-interfaces</module>
+        <module>qiyu-live-im-router-provider</module>
+        <module>qiyu-live-living-provider</module>
+        <module>qiyu-live-living-interfaces</module>
+        <module>qiyu-live-gift-interface</module>
+        <module>qiyu-live-gift-provider</module>
+        <module>qiyu-live-bank-provider</module>
+        <module>qiyu-live-bank-interface</module>
+        <module>qiyu-live-bank-api</module>
+    </modules>
+
+    <properties>
+        <java.version>21</java.version>
+        <maven.compiler.source>21</maven.compiler.source>
+        <maven.compiler.target>21</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+
+        <spring-cloud.version>2025.0.2</spring-cloud.version>
+        <spring-cloud-alibaba.version>2025.0.0.0</spring-cloud-alibaba.version>
+        <dubbo.version>3.3.6</dubbo.version>
+        <shardingsphere.version>5.5.2</shardingsphere.version>
+        <mybatis-plus.version>3.5.16</mybatis-plus.version>
+        <mysql-connector-j.version>9.6.0</mysql-connector-j.version>
+        <rocketmq.version>5.3.1</rocketmq.version>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-dependencies</artifactId>
+                <version>${spring-cloud.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <dependency>
+                <groupId>com.alibaba.cloud</groupId>
+                <artifactId>spring-cloud-alibaba-dependencies</artifactId>
+                <version>${spring-cloud-alibaba.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!-- 不导入 dubbo-bom，因为 dubbo-bom 3.3.0 会把 Spring Framework 管理成 5.3.39，和 Spring Boot 3.2.12 不兼容 -->
+            <dependency>
+                <groupId>org.apache.dubbo</groupId>
+                <artifactId>dubbo-spring-boot-starter</artifactId>
+                <version>${dubbo.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.apache.dubbo</groupId>
+                <artifactId>dubbo-registry-nacos</artifactId>
+                <version>${dubbo.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.apache.dubbo</groupId>
+                <artifactId>dubbo</artifactId>
+                <version>${dubbo.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.apache.shardingsphere</groupId>
+                <artifactId>shardingsphere-jdbc</artifactId>
+                <version>${shardingsphere.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.apache.shardingsphere</groupId>
+                <artifactId>shardingsphere-infra-url-classpath</artifactId>
+                <version>5.5.2</version>
+            </dependency>
+
+
+            <dependency>
+                <groupId>com.baomidou</groupId>
+                <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
+                <version>${mybatis-plus.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.mysql</groupId>
+                <artifactId>mysql-connector-j</artifactId>
+                <version>${mysql-connector-j.version}</version>
+            </dependency>
+            <!--延迟双删的 RocketMQ的延迟消息-->
+            <dependency>
+                <groupId>org.apache.rocketmq</groupId>
+                <artifactId>rocketmq-client</artifactId>
+                <version>${rocketmq.version}</version>
+            </dependency>
+
+        </dependencies>
+    </dependencyManagement>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-maven-plugin</artifactId>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+    </build>
+</project>

@@ -1,0 +1,12 @@
+services:
+  srs:
+    image: ossrs/srs:5
+    container_name: qiyu-live-srs
+    restart: unless-stopped
+    ports:
+      - "1935:1935" # OBS RTMP 推流
+      - "8082:8080" # HLS 播放（宿主机 8082 -> 容器 8080，容器内仍监听 8080）
+      - "1985:1985" # SRS HTTP API
+    volumes:
+      - ./srs.conf:/usr/local/srs/conf/srs.conf:ro
+    command: ["./objs/srs", "-c", "conf/srs.conf"]

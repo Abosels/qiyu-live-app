@@ -1,0 +1,10 @@
+# 本地兜底配置。
+# 当 Nacos 未配置或未连通时，IM Provider 依然可以使用本地 Redis 完成 token 与在线状态能力联调。
+
+spring:
+  data:
+    redis:
+      host: ${QIYU_REDIS_HOST:127.0.0.1}
+      port: ${QIYU_REDIS_PORT:6379}
+      database: ${QIYU_REDIS_DATABASE:0}
+      timeout: 3000ms

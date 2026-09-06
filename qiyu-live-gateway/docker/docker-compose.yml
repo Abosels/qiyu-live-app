@@ -1,0 +1,20 @@
+services:
+  qiyu-live-gateway:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: qiyu-live-gateway
+    image: qiyu-live-gateway:1.0-SNAPSHOT
+    ports:
+      # 网关对外统一暴露 80 端口
+      - "80:80"
+    environment:
+      # 网关也需要连宿主机上的 Nacos，去加载 qiyu-live-gateway.yml
+      SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: host.docker.internal:8848
+      SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR: host.docker.internal:8848
+      SPRING_CLOUD_NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
+      SPRING_CLOUD_NACOS_PASSWORD: ${NACOS_PASSWORD}
+      SERVER_PORT: 80
+    extra_hosts:
+      # Windows / Docker Desktop 场景下，容器访问宿主机用这个名字最稳
+      - "host.docker.internal:host-gateway"

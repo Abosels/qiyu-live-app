@@ -1,0 +1,25 @@
+server:
+  port: 8090
+
+spring:
+  application:
+    name: qiyu-live-msg-provider
+  cloud:
+    nacos:
+      username: ${NACOS_USERNAME:nacos}
+      password: ${NACOS_PASSWORD:}
+      discovery:
+          server-addr: host.docker.internal:8848
+          namespace: public
+      config:
+        import-check:
+          enabled: true
+          #读取配置的nacos文件后缀
+          file-extension: yml
+          #读取配置的nacos地址
+          server-addr: host.docker.internal:8848
+          #读取配置的nacos命名空间
+          namespace: public
+  config:
+    import:
+      - optional:nacos:qiyu-live-msg-provider.yml

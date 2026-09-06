@@ -1,0 +1,38 @@
+# 本地兜底配置。
+# 目的：
+# 1. 当 Nacos 尚未下发 qiyu-live-im-core-server.yml 时，模块仍可本地启动。
+# 2. 提供单机联调所需的最小可运行参数。
+
+spring:
+  data:
+    redis:
+      host: ${QIYU_REDIS_HOST:127.0.0.1}
+      port: ${QIYU_REDIS_PORT:6379}
+      database: ${QIYU_REDIS_DATABASE:0}
+      timeout: 3000ms
+
+qiyu:
+  im:
+    # TCP 二进制 IM 与浏览器 WebSocket 使用独立端口。
+    tcp:
+      port: ${QIYU_IM_TCP_PORT:18080}
+    ws:
+      port: ${QIYU_IM_WS_PORT:18081}
+    # Netty IM 长连接监听端口。
+    port: ${QIYU_IM_PORT:18080}
+  rmq:
+    producer:
+      # MQ starter 读取的是 nameSrv，这里保留正确键名。
+      nameSrv: ${QIYU_RMQ_PRODUCER_NAMESRV:host.docker.internal:9876}
+      groupName: ${QIYU_IM_CORE_SERVER_PRODUCER_GROUP:${spring.application.name}-producer}
+      sendMsgTimeout: 3000
+      retryTimes: 3
+    consumer:
+      nameSrv: ${QIYU_RMQ_CONSUMER_NAMESRV:host.docker.internal:9876}
+      nameServer: ${QIYU_RMQ_CONSUMER_NAMESERVER:host.docker.internal:9876}
+      groupName: ${QIYU_IM_CORE_SERVER_CONSUMER_GROUP:${spring.application.name}-consumer}
+
+# NettyImServerStarter 当前直接按大写环境 key 读取。
+# 这里在本地 classpath 配置里兜底，避免没有外部环境变量时启动失败。
+DUBBO_IP_TO_REGISTRY: ${QIYU_DUBBO_IP_TO_REGISTRY:127.0.0.1}
+DUBBO_PORT_TO_REGISTRY: ${QIYU_DUBBO_PORT_TO_REGISTRY:9092}

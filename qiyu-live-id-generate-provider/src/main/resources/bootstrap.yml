@@ -1,0 +1,9 @@
+spring:
+  cloud:
+    nacos:
+      username: ${NACOS_USERNAME:nacos}
+      password: ${NACOS_PASSWORD:}
+      config:
+        server-addr: host.docker.internal:8848
+        file-extension: yml
+        group: DEFAULT_GROUP

@@ -1,0 +1,39 @@
+# Nacos 配置：qiyu-live-bank-provider
+# DataId: qiyu-live-bank-provider.yml
+# Group: DEFAULT_GROUP
+# Namespace: public
+#
+# 上传方式：Nacos 控制台 → 配置管理 → 配置列表 → 新增配置
+
+spring:
+  datasource:
+    # 容器访问宿主机数据库时，库名必须与 MySQL 中的 qiyu_live_bank 一致。
+    url: jdbc:mysql://host.docker.internal:3306/qiyu_live_bank?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: root
+    password: ${QIYU_MYSQL_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      minimum-idle: 5
+      maximum-pool-size: 20
+      connection-timeout: 30000
+  data:
+    redis:
+      host: host.docker.internal
+      port: 6379
+      database: 0
+      timeout: 3000ms
+      lettuce:
+        pool:
+          min-idle: 5
+          max-idle: 10
+          max-active: 20
+          max-wait: 1000ms
+
+qiyu:
+  rmq:
+    producer:
+      # 属性名需映射到 RocketMQProducerProperties.nameSrv，不能写成 nameServer。
+      name-srv: host.docker.internal:9876
+      group-name: qiyu-live-bank-provider
+      retry-times: 3
+      send-msg-timeout: 3000

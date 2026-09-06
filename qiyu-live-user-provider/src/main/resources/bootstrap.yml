@@ -1,0 +1,61 @@
+dubbo:
+  application:
+    name: qiyu-live-user-provider
+  registry:
+    address: nacos://${QIYU_NACOS_HOST:localhost}:8848
+    username: ${NACOS_USERNAME:nacos}
+    password: ${NACOS_PASSWORD:}
+  server: true
+  protocol:
+    name: dubbo
+    port: 9101
+
+server:
+  port: 8082
+
+spring:
+  application:
+    name: qiyu-live-user-provider
+  config:
+    import:
+      - "optional:nacos:qiyu-live-user-provider.yml"
+  cloud:
+    nacos:
+      username: ${NACOS_USERNAME:nacos}
+      password: ${NACOS_PASSWORD:}
+      discovery:
+        # 让 Spring Cloud Nacos Discovery 也知道去哪里注册/发现服务。
+        server-addr: ${QIYU_NACOS_HOST:localhost}:8848
+      config:
+        import-check:
+          enabled: false
+        # Nacos 配置中心地址
+        server-addr: ${QIYU_NACOS_HOST:localhost}:8848
+        # 从 Nacos 读取配置时使用 yml 后缀
+        file-extension: yml
+        # public 命名空间直接留空即可，默认就是 public
+        # namespace:
+        group: DEFAULT_GROUP
+
+  data:
+    mongodb:
+      # 你当前这台 Mongo 没有开启用户认证，所以先使用无用户名、无密码的连接串。
+      # 后面如果你创建了 Mongo 用户，再把这段改回带用户名、密码和 authSource 的版本。
+      uri: mongodb://127.0.0.1:27017/qiyu-live-user
+      # 数据库已存在等价索引，避免应用每次启动重复建索引并触发名称冲突。
+      auto-index-creation: false
+
+# RocketMQ 基础配置先放在本地 bootstrap 里兜底。
+# 如果后续你想完全交给 Nacos，也可以把这段再迁回 Nacos 配置中心。
+qiyu:
+  rmq:
+    producer:
+      # 这里用环境变量兜底，避免 Nacos 没下发时启动失败。
+      nameServer: ${QIYU_RMQ_PRODUCER_NAMESERVER:host.docker.internal:9876}
+      groupName: ${spring.application.name}
+      retryTimes: 3
+      sendMsgTimeout: 3000
+    consumer:
+      # 这里用环境变量兜底，避免 Nacos 没下发时启动失败。
+      nameServer: ${QIYU_RMQ_CONSUMER_NAMESERVER:host.docker.internal:9876}
+      groupName: ${spring.application.name}

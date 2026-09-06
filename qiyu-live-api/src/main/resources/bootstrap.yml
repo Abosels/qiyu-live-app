@@ -1,0 +1,48 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: qiyu-live-api
+  autoconfigure:
+    # API 层只消费 Dubbo 服务，不直接访问数据库，避免间接 JDBC 依赖触发数据源初始化。
+    exclude: org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+  config:
+    import:
+      - "optional:nacos:qiyu-live-api.yml"
+  cloud:
+    nacos:
+      username: ${NACOS_USERNAME:nacos}
+      password: ${NACOS_PASSWORD:}
+      config:
+        server-addr: ${QIYU_NACOS_HOST:localhost}:8848
+        file-extension: yml
+      discovery:
+        server-addr: ${QIYU_NACOS_HOST:localhost}:8848
+dubbo:
+  application:
+    # Dubbo 应用名统一在这里维护。
+    name: qiyu-live-api
+  registry:
+    # 统一显式指定 public 命名空间，避免与其他服务注册位置不一致
+    address: nacos://${QIYU_NACOS_HOST:localhost}:8848?namespace=public
+    username: ${NACOS_USERNAME:nacos}
+    password: ${NACOS_PASSWORD:}
+  consumer:
+    # 本地开发允许先启动 API，再按需启动礼物、直播、IM 等 Provider。
+    check: false
+  # 当前模块既暴露 Dubbo 能力，也消费 Dubbo 能力，保留 server=true 便于后续扩展
+  server: true
+  protocol:
+    name: dubbo
+    port: 9091
+
+# API 中礼物、红包等功能会发送 MQ 消息；Nacos 未配置时使用本地开发默认值。
+qiyu:
+  rmq:
+    producer:
+      name-srv: ${QIYU_RMQ_PRODUCER_NAMESERVER:localhost:9876}
+      group-name: ${QIYU_RMQ_PRODUCER_GROUP:qiyu-live-api-producer}
+      application-name: ${spring.application.name}
+      send-msg-timeout: 3000
+      retry-times: 3

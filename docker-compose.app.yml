@@ -1,0 +1,379 @@
+# ============================================================
+# qiyu-live-app 应用服务 Compose（13 个 Java 服务）
+#
+# 使用说明：
+#   1. 基础设施（Redis / MySQL / RocketMQ / MongoDB / 宿主机 Nacos）
+#      由既有容器与 docker-compose.infra.yml 提供，本文件只编排业务 Java 服务。
+#   2. 所有服务加入共享网络 qiyu-live-network（external）。
+#   3. 地址约定（与容器网络别名保持一致，见 task 3 接入时设置的 alias）：
+#        Nacos        -> host.docker.internal:8848（宿主机 Nacos，唯一允许走宿主机的地方）
+#        Redis        -> redis:6379
+#        MySQL 主库    -> mysql:3306（别名指向 mysql-master 容器）
+#        MySQL 从库    -> mysql-slave:3306（别名指向 mysql-slave 容器）
+#        RocketMQ     -> rocketmq-namesrv:9876（别名指向 qiyu-rmq-namesrv 容器）
+#        MongoDB      -> mongodb:27017（别名指向 qiyu-live-mongodb 容器，root/${QIYU_MYSQL_PASSWORD}23456）
+#   4. 端口只暴露外部访问必需的：Gateway(80)、API(8081)、Bank-API(8093 支付宝回调)、
+#      IM Core(TCP 18080 / WS 18081)。其余 Dubbo/HTTP 端口走容器网络，不映射到宿主机。
+#   5. 启动顺序建议：先 provider/IM，再 api/gateway（dubbo 消费端会自动重试）。
+# ============================================================
+
+services:
+
+  # ---------- 网关：统一外部入口（宿主机 80 -> 容器 80） ----------
+  qiyu-live-gateway:
+    build:
+      context: qiyu-live-gateway
+      dockerfile: docker/Dockerfile
+    image: qiyu-live-gateway:1.0-SNAPSHOT
+    container_name: qiyu-live-gateway
+    ports:
+      - "80:80"
+    environment:
+      SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: host.docker.internal:8848
+      SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR: host.docker.internal:8848
+      SPRING_CLOUD_NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
+      SPRING_CLOUD_NACOS_PASSWORD: ${NACOS_PASSWORD}
+      SERVER_PORT: 80
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - qiyu-live-network
+
+  # ---------- API：HTTP 入口 + Dubbo 消费者 ----------
+  qiyu-live-api:
+    build:
+      context: qiyu-live-api
+      dockerfile: docker/Dockerfile
+    image: qiyu-live-api:1.0-SNAPSHOT
+    container_name: qiyu-live-api
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: host.docker.internal:8848
+      SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR: host.docker.internal:8848
+      SPRING_CLOUD_NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
+      SPRING_CLOUD_NACOS_PASSWORD: ${NACOS_PASSWORD}
+      QIYU_NACOS_HOST: host.docker.internal
+      QIYU_RMQ_PRODUCER_NAMESERVER: rocketmq-namesrv:9876
+      # 框架 mq-starter 读取的规范 key 是 name-srv（对应环境变量 NAME_SRV），
+      # 覆盖为容器别名，避免 Nacos/bootstrap 里 nameServer 拼写差异导致 nameSrv 为 null。
+      QIYU_RMQ_PRODUCER_NAME_SRV: rocketmq-namesrv:9876
+      SERVER_PORT: 8081
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - qiyu-live-network
+    depends_on:
+      - qiyu-live-user-provider
+      - qiyu-live-account-provider
+      - qiyu-live-msg-provider
+      - qiyu-live-id-generate-provider
+      - qiyu-live-bank-provider
+      - qiyu-live-gift-provider
+      - qiyu-live-living-provider
+      - qiyu-live-im-provider
+      - qiyu-live-im-router-provider
+
+  # ---------- 用户服务：Mongo + MySQL 分库分表 + Redis + RocketMQ ----------
+  # HTTP 8082 与宿主机 SRS(8082) 冲突，故不映射 HTTP/Dubbo 端口到宿主机。
+  qiyu-live-user-provider:
+    build:
+      context: qiyu-live-user-provider
+      dockerfile: docker/Dockerfile
+    image: qiyu-live-user-provider:1.0-SNAPSHOT
+    container_name: qiyu-live-user-provider
+    environment:
+      SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: host.docker.internal:8848
+      SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR: host.docker.internal:8848
+      SPRING_CLOUD_NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
+      SPRING_CLOUD_NACOS_PASSWORD: ${NACOS_PASSWORD}
+      QIYU_NACOS_HOST: host.docker.internal
+      # user-provider 自带 RocketMQProducerConfig，与框架 mq-starter 传递引入的同名 bean 冲突，
+      # 开启 bean 覆盖以消除 Spring Boot 3.x 默认禁止覆盖导致的启动失败。
+      SPRING_MAIN_ALLOW_BEAN_DEFINITION_OVERRIDING: "true"
+      # MongoDB 使用容器别名，root 账号认证
+      SPRING_DATA_MONGODB_URI: mongodb://root:${QIYU_MYSQL_PASSWORD}23456@mongodb:27017/qiyu-live-user?authSource=admin
+      # Redis 容器
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      # MySQL 主从（容器别名）
+      QIYU_MYSQL_MASTER_HOST: mysql
+      QIYU_MYSQL_MASTER_PORT: 3306
+      QIYU_MYSQL_SLAVE_HOST: mysql-slave
+      QIYU_MYSQL_SLAVE_PORT: 3306
+      QIYU_MYSQL_USERNAME: root
+      QIYU_MYSQL_PASSWORD: ${QIYU_MYSQL_PASSWORD}
+      # RocketMQ
+      QIYU_RMQ_PRODUCER_NAMESERVER: rocketmq-namesrv:9876
+      QIYU_RMQ_CONSUMER_NAMESERVER: rocketmq-namesrv:9876
+      # 框架 mq-starter 读取 name-srv（NAME_SRV），与 bootstrap 的 nameServer 拼写不一致；
+      # 显式覆盖保证 user-provider 使用框架 mqProducer 时 nameSrv 非空。
+      QIYU_RMQ_PRODUCER_NAME_SRV: rocketmq-namesrv:9876
+      QIYU_RMQ_CONSUMER_NAME_SRV: rocketmq-namesrv:9876
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - qiyu-live-network
+
+  # ---------- 账号服务：Redis + Dubbo ----------
+  qiyu-live-account-provider:
+    build:
+      context: qiyu-live-account-provider
+      dockerfile: docker/Dockerfile
+    image: qiyu-live-account-provider:1.0-SNAPSHOT
+    container_name: qiyu-live-account-provider
+    environment:
+      SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: host.docker.internal:8848
+      SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR: host.docker.internal:8848
+      SPRING_CLOUD_NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
+      SPRING_CLOUD_NACOS_PASSWORD: ${NACOS_PASSWORD}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - qiyu-live-network
+
+  # ---------- 短信服务：MySQL + Redis + Dubbo ----------
+  qiyu-live-msg-provider:
+    build:
+      context: qiyu-live-msg-provider
+      dockerfile: docker/Dockerfile
+    image: qiyu-live-msg-provider:1.0-SNAPSHOT
+    container_name: qiyu-live-msg-provider
+    environment:
+      SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: host.docker.internal:8848
+      SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR: host.docker.internal:8848
+      SPRING_CLOUD_NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
+      SPRING_CLOUD_NACOS_PASSWORD: ${NACOS_PASSWORD}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      QIYU_MYSQL_MASTER_HOST: mysql
+      QIYU_MYSQL_MASTER_PORT: 3306
+      QIYU_MYSQL_SLAVE_HOST: mysql-slave
+      QIYU_MYSQL_SLAVE_PORT: 3306
+      QIYU_MYSQL_USERNAME: root
+      QIYU_MYSQL_PASSWORD: ${QIYU_MYSQL_PASSWORD}
+      # msg-provider 依赖 mq-starter，但 bootstrap 无 qiyu.rmq 段（全靠 Nacos 下发）；
+      # 用环境变量兜底 name-srv / groupName / retryTimes / sendMsgTimeout，
+      # 避免字段为 null 导致 mqProducer 工厂方法在 setRetryTimesWhenSendFailed 处自动拆箱 NPE。
+      # 注意：retryTimes -> qiyu.rmq.producer.retry-times -> QIYU_RMQ_PRODUCER_RETRY_TIMES（下划线对应连字符）。
+      QIYU_RMQ_PRODUCER_NAME_SRV: rocketmq-namesrv:9876
+      QIYU_RMQ_PRODUCER_GROUP_NAME: qiyu-live-msg-provider-producer
+      QIYU_RMQ_PRODUCER_RETRY_TIMES: 3
+      QIYU_RMQ_PRODUCER_SEND_MSG_TIMEOUT: 3000
+      QIYU_RMQ_CONSUMER_NAME_SRV: rocketmq-namesrv:9876
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - qiyu-live-network
+
+  # ---------- ID 生成服务：MySQL(qiyu_live_common) + Dubbo ----------
+  qiyu-live-id-generate-provider:
+    build:
+      context: qiyu-live-id-generate-provider
+      dockerfile: docker/Dockerfile
+    image: qiyu-live-id-generate-provider:1.0-SNAPSHOT
+    container_name: qiyu-live-id-generate-provider
+    environment:
+      SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: host.docker.internal:8848
+      SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR: host.docker.internal:8848
+      SPRING_CLOUD_NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
+      SPRING_CLOUD_NACOS_PASSWORD: ${NACOS_PASSWORD}
+      # 主库（容器别名 mysql:3306，库名带连字符 qiyu-live-common，与 MySQL 实际库名一致）
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/qiyu-live-common?serverTimezone=Asia/Shanghai&useUnicode=true&characterEncoding=utf-8&allowMultiQueries=true&useSSL=false&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: ${QIYU_MYSQL_PASSWORD}
+      DUBBO_REGISTRY_ADDRESS: nacos://host.docker.internal:8848?namespace=public&username=${NACOS_USERNAME:nacos}&password=${NACOS_PASSWORD:}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - qiyu-live-network
+
+  # ---------- 银行 API：支付宝沙箱回调入口（宿主机 8093） ----------
+  qiyu-live-bank-api:
+    build:
+      context: qiyu-live-bank-api
+      dockerfile: docker/Dockerfile
+    image: qiyu-live-bank-api:1.0-SNAPSHOT
+    container_name: qiyu-live-bank-api
+    ports:
+      - "8093:8093"
+    environment:
+      SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: host.docker.internal:8848
+      SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR: host.docker.internal:8848
+      SPRING_CLOUD_NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
+      SPRING_CLOUD_NACOS_PASSWORD: ${NACOS_PASSWORD}
+      QIYU_NACOS_HOST: host.docker.internal
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - qiyu-live-network
+    depends_on:
+      - qiyu-live-bank-provider
+
+  # ---------- 银行服务：MySQL + Redis + RocketMQ + Dubbo ----------
+  qiyu-live-bank-provider:
+    build:
+      context: qiyu-live-bank-provider
+      dockerfile: docker/Dockerfile
+    image: qiyu-live-bank-provider:1.0-SNAPSHOT
+    container_name: qiyu-live-bank-provider
+    environment:
+      SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: host.docker.internal:8848
+      SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR: host.docker.internal:8848
+      SPRING_CLOUD_NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
+      SPRING_CLOUD_NACOS_PASSWORD: ${NACOS_PASSWORD}
+      QIYU_NACOS_HOST: host.docker.internal
+      QIYU_MYSQL_HOST: mysql
+      QIYU_MYSQL_PORT: 3306
+      QIYU_MYSQL_USERNAME: root
+      QIYU_MYSQL_PASSWORD: ${QIYU_MYSQL_PASSWORD}
+      QIYU_REDIS_HOST: redis
+      QIYU_REDIS_PORT: 6379
+      QIYU_RMQ_PRODUCER_NAMESERVER: rocketmq-namesrv:9876
+      QIYU_RMQ_PRODUCER_NAME_SRV: rocketmq-namesrv:9876
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - qiyu-live-network
+
+  # ---------- 礼物服务：MySQL + Redis + RocketMQ + Dubbo ----------
+  qiyu-live-gift-provider:
+    build:
+      context: qiyu-live-gift-provider
+      dockerfile: docker/Dockerfile
+    image: qiyu-live-gift-provider:1.0-SNAPSHOT
+    container_name: qiyu-live-gift-provider
+    environment:
+      SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: host.docker.internal:8848
+      SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR: host.docker.internal:8848
+      SPRING_CLOUD_NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
+      SPRING_CLOUD_NACOS_PASSWORD: ${NACOS_PASSWORD}
+      QIYU_NACOS_HOST: host.docker.internal
+      QIYU_MYSQL_HOST: mysql
+      QIYU_MYSQL_PORT: 3306
+      QIYU_MYSQL_USERNAME: root
+      QIYU_MYSQL_PASSWORD: ${QIYU_MYSQL_PASSWORD}
+      QIYU_REDIS_HOST: redis
+      QIYU_REDIS_PORT: 6379
+      QIYU_RMQ_PRODUCER_NAMESERVER: rocketmq-namesrv:9876
+      QIYU_RMQ_CONSUMER_NAMESERVER: rocketmq-namesrv:9876
+      # Nacos 配置曾把 consumer.name-srv 覆盖为 null，导致 "connect to null"；
+      # 用高优先级环境变量覆盖为容器别名，保证 nameSrv 非空。
+      QIYU_RMQ_PRODUCER_NAME_SRV: rocketmq-namesrv:9876
+      QIYU_RMQ_CONSUMER_NAME_SRV: rocketmq-namesrv:9876
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - qiyu-live-network
+
+  # ---------- 直播服务：MySQL + Redis + RocketMQ + Dubbo ----------
+  qiyu-live-living-provider:
+    build:
+      context: qiyu-live-living-provider
+      dockerfile: docker/Dockerfile
+    image: qiyu-live-living-provider:1.0-SNAPSHOT
+    container_name: qiyu-live-living-provider
+    environment:
+      SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: host.docker.internal:8848
+      SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR: host.docker.internal:8848
+      SPRING_CLOUD_NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
+      SPRING_CLOUD_NACOS_PASSWORD: ${NACOS_PASSWORD}
+      # bootstrap.yml 里 MySQL/Redis 硬编码了 host.docker.internal，
+      # 这里用环境变量覆盖为容器别名（主库库名 qiyu-live-living）。
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/qiyu-live-living?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: ${QIYU_MYSQL_PASSWORD}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      QIYU_RMQ_PRODUCER_NAMESERVER: rocketmq-namesrv:9876
+      QIYU_RMQ_CONSUMER_NAMESERVER: rocketmq-namesrv:9876
+      # bootstrap.yml 里写的是 nameServer，与框架 name-srv 拼写不一致会读到 null；
+      # 用环境变量直接覆盖 name-srv，避免生产者/消费者启动时 nameSrv 为空崩溃。
+      QIYU_RMQ_PRODUCER_NAME_SRV: rocketmq-namesrv:9876
+      QIYU_RMQ_CONSUMER_NAME_SRV: rocketmq-namesrv:9876
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - qiyu-live-network
+
+  # ---------- IM 核心服务：Redis + RocketMQ + TCP/WebSocket ----------
+  # TCP(18080) 与 WebSocket(18081) 必须映射到宿主机供前端连接。
+  qiyu-live-im-core-server:
+    build:
+      context: qiyu-live-im-core-server
+      dockerfile: docker/Dockerfile
+    image: qiyu-live-im-core-server:1.0-SNAPSHOT
+    container_name: qiyu-live-im-core-server
+    ports:
+      - "18080:18080"
+      - "18081:18081"
+    environment:
+      SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: host.docker.internal:8848
+      SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR: host.docker.internal:8848
+      SPRING_CLOUD_NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
+      SPRING_CLOUD_NACOS_PASSWORD: ${NACOS_PASSWORD}
+      QIYU_NACOS_ADDR: host.docker.internal:8848
+      QIYU_REDIS_HOST: redis
+      QIYU_REDIS_PORT: 6379
+      QIYU_REDIS_DATABASE: 0
+      QIYU_RMQ_PRODUCER_NAMESRV: rocketmq-namesrv:9876
+      QIYU_RMQ_CONSUMER_NAMESRV: rocketmq-namesrv:9876
+      QIYU_RMQ_CONSUMER_NAMESERVER: rocketmq-namesrv:9876
+      QIYU_RMQ_PRODUCER_NAME_SRV: rocketmq-namesrv:9876
+      QIYU_RMQ_CONSUMER_NAME_SRV: rocketmq-namesrv:9876
+      # IM 核心服务把自身 IP 注册到 Nacos（供其它容器/前端定位），
+      # 这里用静态 IP 固定，避免默认 127.0.0.1 被 Dubbo 判为非法注册地址而启动失败。
+      DUBBO_IP_TO_REGISTRY: 172.27.0.100
+      QIYU_DUBBO_IP_TO_REGISTRY: 172.27.0.100
+      DUBBO_PORT_TO_REGISTRY: 9092
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      qiyu-live-network:
+        ipv4_address: 172.27.0.100
+
+  # ---------- IM Provider：Dubbo ----------
+  qiyu-live-im-provider:
+    build:
+      context: qiyu-live-im-provider
+      dockerfile: docker/Dockerfile
+    image: qiyu-live-im-provider:1.0-SNAPSHOT
+    container_name: qiyu-live-im-provider
+    environment:
+      SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: host.docker.internal:8848
+      SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR: host.docker.internal:8848
+      SPRING_CLOUD_NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
+      SPRING_CLOUD_NACOS_PASSWORD: ${NACOS_PASSWORD}
+      QIYU_NACOS_ADDR: host.docker.internal:8848
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - qiyu-live-network
+
+  # ---------- IM Router Provider：Redis + Dubbo ----------
+  qiyu-live-im-router-provider:
+    build:
+      context: qiyu-live-im-router-provider
+      dockerfile: docker/Dockerfile
+    image: qiyu-live-im-router-provider:1.0-SNAPSHOT
+    container_name: qiyu-live-im-router-provider
+    environment:
+      SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: host.docker.internal:8848
+      SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR: host.docker.internal:8848
+      SPRING_CLOUD_NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
+      SPRING_CLOUD_NACOS_PASSWORD: ${NACOS_PASSWORD}
+      QIYU_NACOS_ADDR: host.docker.internal:8848
+      QIYU_REDIS_HOST: redis
+      QIYU_REDIS_PORT: 6379
+      QIYU_REDIS_DATABASE: 0
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - qiyu-live-network
+
+# ---------- 共享网络（外部已存在，由 task 2 创建） ----------
+networks:
+  qiyu-live-network:
+    external: true

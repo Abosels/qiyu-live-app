@@ -1,0 +1,233 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.bei</groupId>
+        <artifactId>qiyu-live-app</artifactId>
+        <version>1.0-SNAPSHOT</version>
+    </parent>
+    <artifactId>qiyu-live-msg-provider</artifactId>
+    <name>Archetype - qiyu-live-msg-provider</name>
+    <url>http://maven.apache.org</url>
+
+    <properties>
+        <maven.compiler.source>21</maven.compiler.source>
+        <maven.compiler.target>21</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <!-- Arthas 压缩包所在目录，打包时会把 arthas-bin.zip 拷贝进 Docker 构建上下文 -->
+        <arthas.zip.address>D:/ProgramData_s/IT/arthas</arthas.zip.address>
+        <cloopen-sms.version>1.0.4</cloopen-sms.version>
+    </properties>
+
+    <dependencies>
+        <!-- Spring Boot 基础启动器，提供核心自动配置能力 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter</artifactId>
+        </dependency>
+
+        <!-- Web 启动器，提供 MVC、内嵌 Tomcat 和 HTTP 接口能力 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <!-- MongoDB 驱动与 Spring Data 支持 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-mongodb</artifactId>
+        </dependency>
+
+        <!-- Dubbo RPC 服务端接入 -->
+        <dependency>
+            <groupId>org.apache.dubbo</groupId>
+            <artifactId>dubbo-spring-boot-starter</artifactId>
+        </dependency>
+
+        <!-- Dubbo 通过 Nacos 作为注册中心 -->
+        <dependency>
+            <groupId>org.apache.dubbo</groupId>
+            <artifactId>dubbo-registry-nacos</artifactId>
+        </dependency>
+
+        <!-- Nacos 配置中心客户端 -->
+        <dependency>
+            <groupId>com.alibaba.cloud</groupId>
+            <artifactId>spring-cloud-starter-alibaba-nacos-config</artifactId>
+        </dependency>
+
+        <!-- Nacos 服务发现 -->
+        <dependency>
+            <groupId>com.alibaba.cloud</groupId>
+            <artifactId>spring-cloud-starter-alibaba-nacos-discovery</artifactId>
+        </dependency>
+
+        <!-- 启用 bootstrap 早期加载配置机制 -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-bootstrap</artifactId>
+        </dependency>
+
+        <!-- 用户接口层依赖，包含 RPC 接口、DTO、枚举等 -->
+        <dependency>
+            <groupId>com.bei</groupId>
+            <artifactId>qiyu-live-user-interface</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+
+        <!-- 数据源和分库分表相关公共能力 -->
+        <dependency>
+            <groupId>com.bei</groupId>
+            <artifactId>qiyu-live-framework-datasource-starter</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+
+        <!-- Redis 通用能力，提供缓存与序列化支持 -->
+        <dependency>
+            <groupId>com.bei</groupId>
+            <artifactId>qiyu-live-framework-redis-starter</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+
+        <!-- 项目内公共工具和常量包 -->
+        <dependency>
+            <groupId>com.bei</groupId>
+            <artifactId>qiyu-live-common-interfacce</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+
+        <!-- ShardingSphere JDBC 核心组件 -->
+        <dependency>
+            <groupId>org.apache.shardingsphere</groupId>
+            <artifactId>shardingsphere-jdbc</artifactId>
+        </dependency>
+
+        <!-- ShardingSphere 基于 classpath 的 URL 解析支持 -->
+        <dependency>
+            <groupId>org.apache.shardingsphere</groupId>
+            <artifactId>shardingsphere-infra-url-classpath</artifactId>
+        </dependency>
+
+        <!-- MyBatis-Plus，提供 ORM 和便捷 CRUD -->
+        <dependency>
+            <groupId>com.baomidou</groupId>
+            <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
+        </dependency>
+
+        <!-- MySQL JDBC 驱动 -->
+        <dependency>
+            <groupId>com.mysql</groupId>
+            <artifactId>mysql-connector-j</artifactId>
+        </dependency>
+
+        <!-- Druid 数据源连接池 -->
+        <dependency>
+            <groupId>com.alibaba</groupId>
+            <artifactId>druid</artifactId>
+            <version>1.2.27</version>
+        </dependency>
+
+        <!-- RocketMQ 客户端 -->
+        <dependency>
+            <groupId>org.apache.rocketmq</groupId>
+            <artifactId>rocketmq-client</artifactId>
+        </dependency>
+
+        <!-- 单元测试支持 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.bei</groupId>
+            <artifactId>qiyu-live-msg-interface</artifactId>
+            <version>1.0-SNAPSHOT</version>
+            <scope>compile</scope>
+        </dependency>
+        <!-- 安装云通讯  -->
+        <dependency>
+            <groupId>com.cloopen</groupId>
+            <artifactId>java-sms-sdk</artifactId>
+            <version>${cloopen-sms.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.bei</groupId>
+            <artifactId>qiyu-live-framework-mq-starter</artifactId>
+            <version>1.0-SNAPSHOT</version>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.bei</groupId>
+            <artifactId>qiyu-live-im-interface</artifactId>
+            <version>1.0-SNAPSHOT</version>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.bei</groupId>
+            <artifactId>qiyu-live-im-router-provider</artifactId>
+            <version>1.0-SNAPSHOT</version>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.bei</groupId>
+            <artifactId>qiyu-live-living-interfaces</artifactId>
+            <version>1.0-SNAPSHOT</version>
+            <scope>compile</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <!-- 老的打包名：qiyu-live-user-provider-docker -->
+        <!-- 新的打包名：避免和已经残留的 jar.original 冲突 -->
+        <finalName>qiyu-live-msg-provider-app</finalName>
+        <plugins>
+            <plugin>
+                <groupId>com.spotify</groupId>
+                <artifactId>docker-maven-plugin</artifactId>
+                <version>1.2.1</version>
+                <executions>
+                    <execution>
+                        <id>build</id>
+                        <phase>install</phase>
+                        <goals>
+                            <goal>build</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <imageName>${project.build.finalName}</imageName>
+                    <imageTags>
+                        <imageTag>${project.version}</imageTag>
+                    </imageTags>
+                    <!-- Dockerfile 所在目录 -->
+                    <dockerDirectory>${project.basedir}/docker</dockerDirectory>
+                    <!-- 打包时将 jar 和 Arthas 压缩包一起拷贝到 Docker 构建上下文 -->
+                    <resources>
+                        <resource>
+                            <targetPath>/</targetPath>
+                            <!-- 应用 jar 包 -->
+                            <directory>${project.build.directory}</directory>
+                            <include>${project.build.finalName}.jar</include>
+                        </resource>
+                        <resource>
+                            <targetPath>/</targetPath>
+                            <!-- Arthas 压缩包 -->
+                            <directory>${arthas.zip.address}</directory>
+                            <include>arthas-bin.zip</include>
+                        </resource>
+                    </resources>
+                </configuration>
+            </plugin>
+
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <!-- 新写法：让 Spring Boot 产出一个独立的可执行 jar，避免覆盖原始 jar。 -->
+                    <classifier>exec</classifier>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

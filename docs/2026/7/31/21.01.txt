@@ -1,0 +1,95 @@
+2026-07-31 聊天记录 — SendGiftMQ.uuId 审查与修复
+
+一、上下文回顾
+
+用户要求阅读 docs\2026\7\30\20.59.txt（送礼、虚拟币消费与 IM 广播改动记录），
+然后逐项检查文档中 5 个待完成项的代码状态。结论：5 项均已修复完成。
+
+二、发现 GiftReqVO 死字段
+
+文件：qiyu-live-api/.../vo/req/GiftReqVO.java
+
+字段 receiverUserId 和 receiveId 语义相同（都是收礼人/主播 ID），
+但两个字段在 GiftServiceImpl.sendGift() 中均未被读取。实际收礼人由服务端
+通过 livingRoomRpc.queryByRoomId() 获取 anchorId，不再信任前端提交。
+这两个字段是历史遗留的死字段。
+
+三、存档点A — SendGiftMQ.uuId 审查
+
+用户要求阅读 C:\Users\陈炎北\Downloads\SendGiftMQ-uuId来源与使用检查清单.md，
+审查后确认两个核心问题：
+
+1. 跨用户碰撞风险：
+   - 当前 bizId = requestId（纯前端值），不同用户可能产生相同 requestId
+   - 如果撞上了，t_qiyu_currency_trade 唯一索引 (biz_id, type) 会冲突
+   - 方案：bizId = userId:requestId
+
+2. 数据库字段长度：
+   - 当前 biz_id VARCHAR(64)
+   - userId(19) + ":"(1) + requestId(64) = 84 字符，超出 64
+   - 需要 ALTER TABLE ... MODIFY COLUMN biz_id VARCHAR(128)
+
+3. IM 重复广播：
+   - MQ 重试时资金不重复扣（bank-provider 数据库幂等），
+     但 IM 特效广播每次都会重复推送
+   - IM 模块经排查确认：完全没有 msgId 去重机制
+   - 采用方案 C：消费者侧 Redis 投递标记（gift-effect-sent:{uuId}）
+     - IM 广播成功 → 设 key → 重试时跳过
+     - IM 广播失败 → 不设 key → 抛异常 → MQ 重试 → 再次广播
+     - at-least-once 语义，不会丢特效
+     - 只改 SendGiftConsumer 一个文件，影响最小
+
+四、代码修改（已完成）
+
+修复 1：跨用户碰撞 — GiftServiceImpl.java
+
+  文件：qiyu-live-api/src/main/java/org/qiyu/live/api/service/impl/GiftServiceImpl.java
+  改动：
+    # 旧代码保留（注释）
+    - sendGiftMQ.setUuId(giftReqVO.getRequestId());
+    - message.setKeys(giftReqVO.getRequestId());
+    # 新代码
+    + String bizId = QiyuRequestContext.getUserId() + ":" + giftReqVO.getRequestId();
+    + sendGiftMQ.setUuId(bizId);
+    + message.setKeys(bizId);
+
+  bizId 经 SendGiftMQ.uuId → AccountTradeReqDTO.bizId → t_qiyu_currency_trade.biz_id
+  全链路自动传递，SendGiftConsumer 和其他消费端无需修改。
+
+修复 1 配套：数据库 migration
+
+  文件：qiyu-live-bank-provider/src/main/resources/sql/001-expand-biz-id-to-128.sql（新建）
+  内容：
+    ALTER TABLE t_qiyu_currency_trade
+        MODIFY COLUMN biz_id VARCHAR(128) NOT NULL
+        COMMENT '业务唯一号：格式为 userId:requestId，与 type 共同受唯一索引保护';
+
+  上线前必须先执行。
+
+修复 2：IM 重复广播 — SendGiftConsumer.java
+
+  文件：qiyu-live-gift-provider/src/java/org/qiyu/live/gift/provider/consumer/SendGiftConsumer.java
+  改动：
+    1) 新增 import java.util.concurrent.TimeUnit;
+    2) 扣币成功后、构建广播消息前，新增 Redis 投递标记检查：
+       String effectSentKey = "gift-effect-sent:" + sendGiftMQ.getUuId();
+       if (Boolean.TRUE.equals(redisTemplate.hasKey(effectSentKey))) {
+           // 已投递，跳过
+           return ConsumeConcurrentlyStatus.CONSUME_SUCCESS;
+       }
+    3) batchSendMsg 成功后设 key：
+       redisTemplate.opsForValue().set(effectSentKey, "1", 24, TimeUnit.HOURS);
+
+五、风险评估
+
+| 风险 | 等级 | 说明 |
+|------|:--:|------|
+| DB migration 执行时机 | 中 | 需在代码上线前执行，否则旧代码写超过 64 字符会截断 |
+| Redis key 24h 过期 | 低 | MQ 积压超 24h 才重试时会重复广播，概率极低 |
+| 旧 requestId 兼容 | 无 | 新旧 bizId 格式不冲突（旧格式无 : 分隔符） |
+
+六、下一步
+
+- 编译验证：mvn compile
+- 上线前执行 DB migration
+- 运行现有测试用例

@@ -1,0 +1,40 @@
+version: 1
+fields:
+  tag_info1:
+    range: "0-62"
+    owner: "user-domain"
+    bits:
+      0:
+        code: "IS_VIP"
+        desc: "是否会员"
+        status: "ACTIVE"
+      1:
+        code: "IS_OLD_USER"
+        desc: "是否老用户"
+        status: "ACTIVE"
+      2:
+        code: "IS_GOLD_FATHER"
+        desc: "是否金主"
+        status: "ACTIVE"
+      3:
+        code: "FINISH_TASK"
+        desc: "是否完成任务"
+        status: "ACTIVE"
+      4:
+        code: "SHOW_IN_LIVE_RECOMMEND"
+        desc: "是否直播推荐曝光"
+        status: "ACTIVE"
+      5:
+        code: "ALWAYS_WATCH_LIVE"
+        desc: "是否常看直播"
+        status: "ACTIVE"
+
+  tag_info2:
+    range: "0-62"
+    owner: "growth-domain"
+    bits: {}
+
+  tag_info3:
+    range: "0-62"
+    owner: "ops-domain"
+    bits: {}

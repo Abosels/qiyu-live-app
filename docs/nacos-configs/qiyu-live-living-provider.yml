@@ -1,0 +1,41 @@
+# Nacos 配置：qiyu-live-living-provider
+# DataId: qiyu-live-living-provider.yml
+# Group: DEFAULT_GROUP
+# Namespace: public
+#
+# 上传方式：Nacos 控制台 → 配置管理 → 配置列表 → 新增配置
+# 本文件为生产环境覆盖配置，本地开发时 bootstrap.yml 中已有兜底值
+
+spring:
+  datasource:
+    url: jdbc:mysql://host.docker.internal:3307/qiyu-live-living?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: root
+    password: ${QIYU_MYSQL_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      minimum-idle: 5
+      maximum-pool-size: 20
+      connection-timeout: 30000
+  data:
+    redis:
+      host: host.docker.internal
+      port: 6379
+      database: 0
+      timeout: 3000ms
+      lettuce:
+        pool:
+          min-idle: 5
+          max-idle: 10
+          max-active: 20
+          max-wait: 1000ms
+
+qiyu:
+  rmq:
+    producer:
+      nameServer: host.docker.internal:9876
+      groupName: qiyu-live-living-provider
+      retryTimes: 3
+      sendMsgTimeout: 3000
+    consumer:
+      nameServer: host.docker.internal:9876
+      groupName: qiyu-live-living-provider

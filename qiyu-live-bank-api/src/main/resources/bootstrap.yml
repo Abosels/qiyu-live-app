@@ -1,0 +1,28 @@
+server:
+  port: 8093
+
+spring:
+  application:
+    name: qiyu-live-bank-api
+  config:
+    import:
+      - "optional:nacos:qiyu-live-bank-api.yml"
+  cloud:
+    nacos:
+      username: ${NACOS_USERNAME:nacos}
+      password: ${NACOS_PASSWORD:}
+      config:
+        import-check:
+          enabled: false
+        server-addr: ${QIYU_NACOS_HOST:localhost}:8848
+        file-extension: yml
+        namespace: public
+        group: DEFAULT_GROUP
+
+dubbo:
+  application:
+    name: ${spring.application.name}
+  registry:
+    address: nacos://${QIYU_NACOS_HOST:localhost}:8848?namespace=public
+    username: ${NACOS_USERNAME:nacos}
+    password: ${NACOS_PASSWORD:}

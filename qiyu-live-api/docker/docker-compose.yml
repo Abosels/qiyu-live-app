@@ -1,0 +1,27 @@
+services:
+  qiyu-live-api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: qiyu-live-api
+    image: qiyu-live-api:1.0-SNAPSHOT
+    ports:
+      # 对外暴露 HTTP 端口，网关最终也会走这个服务的 8081。
+      - "8081:8081"
+      # 老写法：直接映射到 9090，会和 qiyu-live-user-provider 冲突。
+      # - "9090:9090"
+      # 新写法：把 API 的 Dubbo 端口改映射到宿主机 9091，避免冲突。
+      - "9091:9090"
+    environment:
+      # 让容器里的应用连接到宿主机上的 Nacos。
+      SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: host.docker.internal:8848
+      SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR: host.docker.internal:8848
+      SPRING_CLOUD_NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
+      SPRING_CLOUD_NACOS_PASSWORD: ${NACOS_PASSWORD}
+      # Dubbo 注册中心也指向宿主机 Nacos。
+      DUBBO_REGISTRY_ADDRESS: nacos://host.docker.internal:8848?username=${NACOS_USERNAME:nacos}&password=${NACOS_PASSWORD:}
+      # 统一容器内的启动端口。
+      SERVER_PORT: 8081
+    extra_hosts:
+      # Windows / Docker Desktop 场景下，容器访问宿主机用这个名字最稳。
+      - "host.docker.internal:host-gateway"

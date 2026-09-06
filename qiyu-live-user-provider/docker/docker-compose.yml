@@ -1,0 +1,50 @@
+services:
+  qiyu-live-user-provider-docker-1:
+    # 第 1 个用户服务实例，保留你原来“两台一模一样”的写法
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: qiyu-live-user-provider
+    image: qiyu-live-user-provider:1.0-SNAPSHOT
+    ports:
+      # 第 1 个实例的 HTTP 端口
+      - "8082:8082"
+      # 第 1 个实例的 Dubbo 端口
+      - "9090:9090"
+    environment:
+      # Nacos 配置中心和注册中心地址
+      SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: host.docker.internal:8848
+      SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR: host.docker.internal:8848
+      SPRING_CLOUD_NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
+      SPRING_CLOUD_NACOS_PASSWORD: ${NACOS_PASSWORD}
+
+      # MongoDB、Redis、RocketMQ 默认连接主机
+      # 你当前这台 Mongo 没有配置用户认证，所以这里先不写用户名、密码和 authSource。
+      # 等你后面真的创建了 Mongo 用户，再把这行改回带认证的版本。
+      SPRING_DATA_MONGODB_URI: mongodb://host.docker.internal:27017/qiyu-live-user
+      SPRING_DATA_REDIS_HOST: host.docker.internal
+      SPRING_DATA_REDIS_PORT: 6379
+
+      # ShardingSphere 读取本机 MySQL 主从
+      QIYU_MYSQL_MASTER_HOST: host.docker.internal
+      QIYU_MYSQL_MASTER_PORT: 3307
+      QIYU_MYSQL_SLAVE_HOST: host.docker.internal
+      QIYU_MYSQL_SLAVE_PORT: 3308
+      QIYU_MYSQL_USERNAME: root
+      QIYU_MYSQL_PASSWORD: ${QIYU_MYSQL_PASSWORD}
+
+      # RocketMQ nameserver
+      QIYU_RMQ_PRODUCER_NAMESERVER: host.docker.internal:9876
+      QIYU_RMQ_CONSUMER_NAMESERVER: host.docker.internal:9876
+
+      # Dubbo 注册中心统一使用 public 命名空间
+      DUBBO_REGISTRY_ADDRESS: nacos://host.docker.internal:8848?namespace=public&username=${NACOS_USERNAME:nacos}&password=${NACOS_PASSWORD:}
+
+      # 第 1 个实例的应用端口
+      SERVER_PORT: 8082
+
+      # 第 1 个实例的 Dubbo 端口
+      DUBBO_PROTOCOL_PORT: 9090
+    extra_hosts:
+      # 让容器可以访问宿主机
+      - "host.docker.internal:host-gateway"

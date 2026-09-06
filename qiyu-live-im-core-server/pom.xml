@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.bei</groupId>
+        <artifactId>qiyu-live-app</artifactId>
+        <version>1.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>qiyu-live-im-core-server</artifactId>
+    <name>qiyu-live-im-core-server</name>
+    <description>基于 Netty NIO 的 IM 核心服务，负责 WebSocket 连接管理和消息路由</description>
+
+    <properties>
+        <!--
+            fastjson2 版本对齐 gateway 模块（2.0.57 兼容 Dubbo 3.3.6）。
+            不使用旧版 com.alibaba:fastjson（已停止维护）。
+        -->
+        <fastjson2.version>2.0.57</fastjson2.version>
+        <!--
+            Netty 版本不由 Spring Boot 父 POM 管理 netty-all，
+            这里显式声明，与 Spring Boot 3.5.x 内置的 netty-bom 版本保持一致。
+        -->
+        <netty.version>4.1.119.Final</netty.version>
+    </properties>
+
+    <dependencies>
+        <!-- ==================== IM 核心引擎 ==================== -->
+
+        <!-- Netty NIO — 高性能网络通信框架，承载 WebSocket 长连接 -->
+        <dependency>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-all</artifactId>
+            <version>${netty.version}</version>
+        </dependency>
+
+        <!-- JSON 序列化 — IM 消息编解码，与 gateway 统一使用 fastjson2 -->
+        <dependency>
+            <groupId>com.alibaba.fastjson2</groupId>
+            <artifactId>fastjson2</artifactId>
+            <version>${fastjson2.version}</version>
+        </dependency>
+
+        <!-- ==================== 项目内部依赖 ==================== -->
+
+        <!-- IM 服务对外接口定义 -->
+        <dependency>
+            <groupId>com.bei</groupId>
+            <artifactId>qiyu-live-im-interface</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+
+        <!-- 公共工具类 -->
+        <dependency>
+            <groupId>com.bei</groupId>
+            <artifactId>qiyu-live-common-interfacce</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+
+        <!-- Redis 支持：用户 Session 存储、房间状态缓存、消息队列 -->
+        <dependency>
+            <groupId>com.bei</groupId>
+            <artifactId>qiyu-live-framework-redis-starter</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+
+        <!-- RocketMQ producer 自动装配，供消息投递与 ACK 补偿使用 -->
+        <dependency>
+            <groupId>com.bei</groupId>
+            <artifactId>qiyu-live-framework-mq-starter</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+
+        <!-- ==================== Spring Boot 基础 ==================== -->
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter</artifactId>
+        </dependency>
+
+        <!-- Web 容器：保持 Netty IM Server 常驻运行，不随 Spring 启动完成而退出 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <!-- ==================== Dubbo RPC ==================== -->
+
+        <dependency>
+            <groupId>org.apache.dubbo</groupId>
+            <artifactId>dubbo-spring-boot-starter</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.dubbo</groupId>
+            <artifactId>dubbo-registry-nacos</artifactId>
+        </dependency>
+
+        <!-- ==================== Nacos 服务治理 ==================== -->
+
+        <dependency>
+            <groupId>com.alibaba.cloud</groupId>
+            <artifactId>spring-cloud-starter-alibaba-nacos-config</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.alibaba.cloud</groupId>
+            <artifactId>spring-cloud-starter-alibaba-nacos-discovery</artifactId>
+        </dependency>
+
+        <!-- 允许 bootstrap 阶段加载 Nacos 配置 -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-bootstrap</artifactId>
+        </dependency>
+
+        <!-- ==================== 工具 ==================== -->
+
+        <!-- Lombok — 父 POM 已声明 optional，这里显式引入确保可用 -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-transport</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.rocketmq</groupId>
+            <artifactId>rocketmq-client</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.bei</groupId>
+            <artifactId>qiyu-live-im-core-server-interfaces</artifactId>
+            <version>1.0-SNAPSHOT</version>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.bei</groupId>
+            <artifactId>qiyu-live-user-provider</artifactId>
+            <version>1.0-SNAPSHOT</version>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <finalName>qiyu-live-im-core-server-app</finalName>
+        <plugins>
+            <!-- Spring Boot 可执行 jar，classifier=exec 与 docker 插件对齐 -->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <classifier>exec</classifier>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

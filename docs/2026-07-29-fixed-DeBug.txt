@@ -1,0 +1,241 @@
+================================================================================
+  qiyu-live-app 代码修复汇总
+  日期: 2026-07-29
+  分支: codex/mongo-user-tag
+================================================================================
+
+本次修复覆盖 5 大类问题：Bug修复、端口冲突、代码质量、配置补全、Application 类补全。
+特别说明：consumeForSendGift() 的竞态修复本次未处理，留待后续。
+
+================================================================================
+一、严重 Bug 修复 (4项)
+================================================================================
+
+1. AccountTradeRespDTO.buildSuccess() 设置 isSuccess=false
+   文件: qiyu-live-bank-interface/src/main/java/org/qiyu/live/bank/dto/AccountTradeRespDTO.java
+   行号: 35
+   问题: buildSuccess() 方法内 dto.setSuccess(false)，导致扣款成功后返回 isSuccess=false
+   影响: SendGiftConsumer 中 if (tradeRespDTO.isSuccess()) 永远为 false，
+         用户余额被扣但永远收到"送礼失败"的 IM 通知
+   修复: dto.setSuccess(false) → dto.setSuccess(true)
+
+2. PayTopicServiceImpl.getByCode() 直接返回 null（未实现）
+   文件: qiyu-live-bank-provider/src/main/java/org/qiyu/live/bank/provider/service/impl/PayTopicServiceImpl.java
+   行号: 27
+   问题: 方法体只有 return null，未实现任何查询逻辑
+   影响: PayOrderServiceImpl.payNotify() → getByCode() → return null → 直接 return false
+         → payNotifyHandler() 永远不会执行 → 充值回调后用户余额永远不会增加！
+   修复: 参照 getPayTopicById() 实现，用 LambdaQueryWrapper 按 bizCode 和 status 查询
+
+3. GiftController.sendGift() 未调用 service
+   文件: qiyu-live-api/src/main/java/org/qiyu/live/api/controller/GiftController.java
+   行号: 43
+   问题: 直接 return WebResponseVO.success()，giftService.sendGift() 从未调用
+   影响: 整个送礼链路从 HTTP 入口就断了，MQ 消息不会发送，余额不会扣减
+   修复: return WebResponseVO.success(giftService.sendGift(giftReqVO))
+
+4. GiftRecordRpcImpl 注入注解错误
+   文件: qiyu-live-gift-provider/src/java/org/qiyu/live/gift/provider/rpc/GiftRecordRpcImpl.java
+   行号: 12
+   问题: 使用 org.springframework.data.annotation.Reference 注入 Service
+         (这是 Spring Data 的关联注解，不是 IoC 容器注入注解)
+   影响: giftRecordService 不会被注入，调用时 NPE
+   修复: import jakarta.annotation.Resource + @Resource 替换 @Reference
+
+
+================================================================================
+二、端口冲突修复 (6个模块)
+================================================================================
+
+5. Dubbo 端口 9090 冲突 → 6个模块各分配唯一端口
+
+   修复前 (全部冲突在 9090):
+   - qiyu-live-api:                9090 (bootstrap.yml)
+   - qiyu-live-user-provider:      9090 (bootstrap.yml + dubbo.properties)
+   - qiyu-live-user-interface:     9090 (bootstrap.yml)
+   - qiyu-live-account-provider:   9090 (bootstrap.yml + dubbo.properties)
+   - qiyu-live-msg-provider:       9090 (dubbo.properties)
+   - qiyu-live-id-generate-provider: 9090 (dubbo.properties) / 9091 (application.yaml) 内部矛盾
+
+   修复后 (每个模块唯一端口):
+   - qiyu-live-api:                9091  (bootstrap.yml)
+   - qiyu-live-user-provider:      9101  (bootstrap.yml + dubbo.properties)
+   - qiyu-live-user-interface:     9102  (bootstrap.yml)
+   - qiyu-live-account-provider:   9090  (保持不变)
+   - qiyu-live-msg-provider:       9103  (dubbo.properties)
+   - qiyu-live-id-generate-provider: 9104  (application.yaml + dubbo.properties 统一)
+
+6. HTTP server.port 冲突修复
+
+   8082 冲突: user-provider(8082) vs user-interface(8082)
+   → user-interface 改为 8092
+
+   8083 冲突: account-provider(8083) vs id-generate-provider(8083)
+   → id-generate-provider 改为 8091
+
+7. msg-provider 配置补全
+   文件: qiyu-live-msg-provider/src/main/resources/bootstrap.yml
+   问题: 缺少 spring.application.name 和 server.port
+   修复: 添加 spring.application.name=qiyu-live-msg-provider, server.port=8090
+
+8. id-generate-provider 内部矛盾统一
+   文件: qiyu-live-id-generate-provider/src/main/resources/application.yaml
+   文件: qiyu-live-id-generate-provider/src/main/resources/dubbo.properties
+   问题: application.yaml 声明 dubbo 端口 9091，dubbo.properties 声明 9090
+   修复: 统一为 9104
+
+
+================================================================================
+三、代码质量修复 (4项)
+================================================================================
+
+9. GiftConfigServiceImpl.queryGiftList() 误加 limit 1
+   文件: qiyu-live-gift-provider/src/java/org/qiyu/live/gift/provider/service/impl/GiftConfigServiceImpl.java
+   行号: 35
+   问题: 查询全部礼物列表时 queryWrapper.last("limit 1") 限制了只返回一条
+   修复: 删除 queryWrapper.last("limit 1")
+   注意: getGiftId() 中的 limit 1 是正确的（查单个），保留不动
+
+10. OrderStatusEnum 拼写错误
+    文件: qiyu-live-bank-interface/src/main/java/org/qiyu/live/bank/constants/OrderStatusEnum.java
+    行号: 10
+    问题: PAYED(2,"已付中") → 应为 "已支付"
+    修复: "已付中" → "已支付"
+
+11. GiftServiceImpl.sendGift() 死代码注释保留
+    文件: qiyu-live-api/src/main/java/org/qiyu/live/api/service/impl/GiftServiceImpl.java
+    行号: 72-74
+    问题: AccountTradeReqDTO reqDTO 创建后从未使用（扣款已改为 MQ 异步模式）
+    修复: 按旧代码保护规则注释保留，标注原因
+
+12. consume() 方法补全 Redis 同步 + 交易流水
+    文件: qiyu-live-bank-provider/src/main/java/org/qiyu/live/bank/provider/service/impl/QiyuCurrencyAccountServiceImpl.java
+    问题: consume() 的 DB 原子扣减成功后:
+          (1) Redis 缓存未同步 → getBalance() 读到过期旧值
+          (2) 交易流水未插入 → t_qiyu_currency_trade 无记录
+    修复:
+          (1) DB 扣减成功后同步 decrement Redis 缓存
+          (2) 通过异步线程池插入交易流水记录(最终一致性，与 decrease() 策略一致)
+
+
+================================================================================
+四、Nacos 配置文档补全 (6个模块)
+================================================================================
+
+13. 新建 6 个 Nacos 配置 YAML 文档 (docs/nacos-configs/)
+
+    新建文件:
+    - qiyu-live-api.yml             (Redis 配置)
+    - qiyu-live-user-provider.yml   (MySQL + Redis 配置)
+    - qiyu-live-user-msg.yml        (qiyu-live-user-interface 模块对应, 疑似废弃)
+    - qiyu-live-account-provider.yml (Redis 配置, 无需 MySQL)
+    - qiyu-live-gateway.yml         (网关预留, 暂无业务配置)
+    - qiyu-live-msg-provider.yml    (MySQL + Redis 配置)
+
+    注意: 这些是本地文档副本，实际配置仍需上传到 Nacos 服务器。
+    bootstrap.yml 中使用的是 optional:nacos:，缺失不会阻止启动。
+
+
+================================================================================
+五、端口分配总览 (修复后)
+================================================================================
+
+| 模块                           | HTTP  | Dubbo | 变化说明     |
+|--------------------------------|-------|-------|-------------|
+| qiyu-live-api                  | 8081  | 9091  | Dubbo +1    |
+| qiyu-live-user-provider        | 8082  | 9101  | Dubbo +11   |
+| qiyu-live-user-interface       | 8092  | 9102  | HTTP+10, Dubbo+12 |
+| qiyu-live-account-provider     | 8083  | 9090  | 保持不变     |
+| qiyu-live-im-core-server       | 8084  | 9092  | 无变化       |
+| qiyu-live-im-provider          | 8085  | 9094  | 无变化       |
+| qiyu-live-im-router-provider   | 8086  | 9095  | 无变化       |
+| qiyu-live-living-provider      | 8087  | 9096  | 无变化       |
+| qiyu-live-gift-provider        | 8088  | 9097  | 无变化       |
+| qiyu-live-bank-provider        | 8089  | 9098  | 无变化       |
+| qiyu-live-gateway              | 80    | —     | 无变化       |
+| qiyu-live-msg-provider         | 8090  | 9103  | 补HTTP, Dubbo+13 |
+| qiyu-live-id-generate-provider | 8091  | 9104  | HTTP+8, 统一内部矛盾 |
+
+
+================================================================================
+六、已知遗留问题 (本次未处理)
+================================================================================
+
+以下问题已在审计中发现，但本次未修复：
+
+1. consumeForSendGift() 竞态条件
+   文件: QiyuCurrencyAccountServiceImpl.java:163-173
+   问题: getBalance() → Java判断 → decrease() 非原子操作，高并发可能超扣
+   建议: Redis Lua 脚本原子化 "判断+扣减" 两步操作
+   原因: 用户要求本次跳过，后续单独处理
+
+2. GiftConfigCacheConsumer 空实现
+   文件: qiyu-live-gift-provider/.../consumer/GiftConfigCacheConsumer.java
+   问题: 整个类只有空壳，未实现缓存消费逻辑
+
+3. payNotify() 缺少幂等性处理
+   影响: MQ 发送成功后若回调方重试，会重复充值
+
+4. qiyu-live-user-interface 模块配置待修复
+   - spring.application.name 与目录名不一致 (qiyu-live-user-msg vs qiyu-live-user-interface)
+   - 无 main 类（若是纯接口模块则正常）
+   - pom.xml 为空 skeleton，需补全依赖
+
+
+================================================================================
+七、涉及文件清单 (本次改动)
+================================================================================
+
+修改:
+  1. qiyu-live-bank-interface/src/main/java/org/qiyu/live/bank/dto/AccountTradeRespDTO.java
+  2. qiyu-live-bank-provider/src/main/java/org/qiyu/live/bank/provider/service/impl/PayTopicServiceImpl.java
+  3. qiyu-live-api/src/main/java/org/qiyu/live/api/controller/GiftController.java
+  4. qiyu-live-gift-provider/src/java/org/qiyu/live/gift/provider/rpc/GiftRecordRpcImpl.java
+  5. qiyu-live-api/src/main/resources/bootstrap.yml
+  6. qiyu-live-user-provider/src/main/resources/bootstrap.yml
+  7. qiyu-live-user-provider/src/main/resources/dubbo.properties
+  8. qiyu-live-user-interface/src/main/resources/bootstrap.yml
+  9. qiyu-live-msg-provider/src/main/resources/bootstrap.yml
+ 10. qiyu-live-msg-provider/src/main/resources/dubbo.properties
+ 11. qiyu-live-id-generate-provider/src/main/resources/application.yaml
+ 12. qiyu-live-id-generate-provider/src/main/resources/dubbo.properties
+ 13. qiyu-live-gift-provider/src/java/org/qiyu/live/gift/provider/service/impl/GiftConfigServiceImpl.java
+ 14. qiyu-live-bank-interface/src/main/java/org/qiyu/live/bank/constants/OrderStatusEnum.java
+ 15. qiyu-live-api/src/main/java/org/qiyu/live/api/service/impl/GiftServiceImpl.java
+ 16. qiyu-live-bank-provider/src/main/java/org/qiyu/live/bank/provider/service/impl/QiyuCurrencyAccountServiceImpl.java
+
+新建:
+ 17. docs/nacos-configs/qiyu-live-api.yml
+ 18. docs/nacos-configs/qiyu-live-user-provider.yml
+ 19. docs/nacos-configs/qiyu-live-user-msg.yml
+ 20. docs/nacos-configs/qiyu-live-account-provider.yml
+ 21. docs/nacos-configs/qiyu-live-gateway.yml
+ 22. docs/nacos-configs/qiyu-live-msg-provider.yml
+ 23. qiyu-live-gift-provider/src/main/java/org/qiyu/live/gift/provider/GiftProviderApplication.java
+ 24. qiyu-live-living-provider/src/main/java/org/qiyu/live/living/provider/LivingProviderApplication.java
+
+==== 第二轮修复 (2026-07-29 续) ====
+
+修改:
+ 25. qiyu-live-living-provider/pom.xml                           — 依赖全面补全
+ 26. qiyu-live-msg-provider/pom.xml                             — 新增 nacos-discovery 依赖
+ 27. qiyu-live-bank-provider/.../QiyuCurrencyAccountServiceImpl.java — consumeIcreBHandler/consumeDcreBHandler 交易类型参数化
+
+修复详情:
+ 25. living-provider pom.xml 补全为标准 provider 依赖结构
+     新增: dubbo-spring-boot-starter, dubbo-registry-nacos, spring-boot-starter, spring-boot-starter-web,
+           nacos-config, nacos-discovery, bootstrap, mybatis-plus-spring-boot3-starter, mysql-connector-j,
+           druid, lombok, spring-boot-starter-test
+     新增 build 段: docker-maven-plugin + spring-boot-maven-plugin
+
+ 26. msg-provider pom.xml 新增 spring-cloud-starter-alibaba-nacos-discovery 依赖
+
+ 27. consumeIcreBHandler / consumeDcreBHandler 硬编码修复
+     问题: 两个 handler 都硬编码 TradeTypeEnum.SEND_GIFT_TRADE
+     修复: 方法签名增加 TradeTypeEnum 参数
+           - increase() → consumeIcreBHandler(userId, number, LIVING_RECHARGE_TRADE)
+           - decrease() → consumeDcreBHandler(userId, number, SEND_GIFT_TRADE)
+
+================================================================================
+                           修复完成
+================================================================================

@@ -1,0 +1,15 @@
+# 本地兜底配置。
+# 路由层联调依赖 Redis 中的用户绑定地址，因此这里补齐 Redis 与 Dubbo 消费者的本地默认参数。
+
+spring:
+  data:
+    redis:
+      host: ${QIYU_REDIS_HOST:127.0.0.1}
+      port: ${QIYU_REDIS_PORT:6379}
+      database: ${QIYU_REDIS_DATABASE:0}
+      timeout: 3000ms
+
+dubbo:
+  consumer:
+    # 允许本地联调时先启动 router-provider，再启动 core-server。
+    check: false

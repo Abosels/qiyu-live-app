@@ -1,0 +1,26 @@
+dubbo:
+  application:
+    name: qiyu-live-id-generate-provider
+  registry:
+    address: nacos://host.docker.internal:8848
+    username: ${NACOS_USERNAME:nacos}
+    password: ${NACOS_PASSWORD:}
+  server: true
+  protocol:
+    name: dubbo
+    port: 9104
+
+server:
+  port: 8091
+
+spring:
+  application:
+    name: qiyu-live-id-generate-provider
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://host.docker.internal:3306/qiyu_live_common?serverTimezone=Asia/Shanghai&useUnicode=true&characterEncoding=utf-8&allowMultiQueries=true&useSSL=false&allowPublicKeyRetrieval=true
+    username: root
+    password: ${QIYU_MYSQL_PASSWORD}
+  config:
+    import:
+      - "optional:nacos:qiyu-live-id-generate-provider.yml"

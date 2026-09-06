@@ -1,0 +1,11 @@
+# Nacos 配置：qiyu-live-gateway
+# DataId: qiyu-live-gateway.yml
+# Group: DEFAULT_GROUP
+# Namespace: public
+#
+# 上传方式：Nacos 控制台 → 配置管理 → 配置列表 → 新增配置
+# 说明：网关模块，不直连数据库，仅做路由转发和 Dubbo 泛化调用。
+# 如后续需要限流/鉴权等配置，可在此处补充。
+
+# 网关当前暂无需要 Nacos 下发的业务配置，
+# 本文件预留作为后续网关策略配置的入口（如限流规则、路由白名单等）。

@@ -1,0 +1,36 @@
+spring:
+  application:
+    name: qiyu-live-im-core-server
+  config:
+    import:
+      - "optional:classpath:qiyu-live-im-core-server.yml"
+  cloud:
+    nacos:
+      username: ${NACOS_USERNAME:nacos}
+      password: ${NACOS_PASSWORD:}
+      discovery:
+        server-addr: ${QIYU_NACOS_ADDR:127.0.0.1:8848}
+        namespace: public
+        group: DEFAULT_GROUP
+      config:
+        import-check:
+          enabled: false
+        server-addr: ${QIYU_NACOS_ADDR:127.0.0.1:8848}
+        file-extension: yml
+        namespace: public
+        group: DEFAULT_GROUP
+
+server:
+  port: 8084
+
+dubbo:
+  application:
+    name: ${spring.application.name}
+  registry:
+    address: nacos://${QIYU_NACOS_ADDR:127.0.0.1:8848}?namespace=public
+    username: ${NACOS_USERNAME:nacos}
+    password: ${NACOS_PASSWORD:}
+  protocol:
+    name: dubbo
+    port: 9092
+  server: true

@@ -1,0 +1,27 @@
+server:
+  port: 8093
+
+spring:
+  application:
+    name: qiyu-live-bank-api
+
+dubbo:
+  application:
+    name: ${spring.application.name}
+  registry:
+    address: nacos://${QIYU_NACOS_HOST:host.docker.internal}:8848?namespace=public
+    username: ${NACOS_USERNAME:nacos}
+    password: ${NACOS_PASSWORD:}
+
+qiyu:
+  pay:
+    alipay:
+      # Personal practice uses Alipay Sandbox. Configure real values only in Nacos.
+      enabled: true
+      gateway-url: https://openapi-sandbox.dl.alipaydev.com/gateway.do
+      app-id: ${QIYU_ALIPAY_APP_ID:}
+      app-private-key: ${QIYU_ALIPAY_APP_PRIVATE_KEY:}
+      alipay-public-key: ${QIYU_ALIPAY_PUBLIC_KEY:}
+      notify-url: ${QIYU_ALIPAY_NOTIFY_URL:}
+      # A return URL only displays the result. Accounting relies on the async notify URL.
+      return-url: ${QIYU_ALIPAY_RETURN_URL:}
