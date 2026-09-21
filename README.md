@@ -1,6 +1,6 @@
 # qiyu-live-app
 
-> 一个用于学习 Java 微服务、直播互动与异步业务链路的个人后端项目。项目持续迭代中，不以生产可用或高并发压测结论作为目标。
+> 一个用于学习 Java 微服务、直播互动与异步业务链路的个人后端项目。项目持续迭代中。
 
 ## 项目亮点
 
@@ -85,18 +85,13 @@ mvn -s .mvn/settings.xml -DskipTests package
 
 ## Docker 部署进度
 
-当前 Docker Compose 用于本机练手：复用已有 Redis、RocketMQ、MySQL、SRS 容器，`docker-compose.infra.yml` 提供 MongoDB，`docker-compose.app.yml` 提供 Java 服务编排。Nacos 目前仍按宿主机服务接入。部署过程和约束见：
+当前 Docker Compose 用于本机练手：复用已有 Redis、RocketMQ、MySQL、SRS 容器，`docker-compose.infra.yml` 提供 MongoDB，`docker-compose.app.yml` 提供 Java 服务编排。Nacos 目前仍按宿主机服务接入。
 
-[本机 Docker Compose 部署实施说明](./docs/2026-09-03-docker-compose-local-deployment-claude-code-guide.md)
-
-> Docker 部署尚在实施阶段。当前不应将项目描述为“已完成生产环境部署”。
 
 ## 后续计划
 
 - [ ] 完成 Nacos、MongoDB 与全部 Java 服务的统一 Docker Compose 编排
 - [ ] 验证支付宝沙箱支付创建订单、异步通知及重复回调幂等
-- [ ] 完成红包雨全链路运行验证
-- [ ] 完成 PK 到期结算、状态同步与前端展示联调
 - [ ] 补充关键异步链路的自动化测试
 
 ## 项目总览
